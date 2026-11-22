@@ -1,0 +1,134 @@
+<!-- Now create your frontend interface file named index.html. -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Dubbing App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center">
+    <div class="bg-white p-8 rounded shadow-md w-full max-w-md">
+        <h1 id="title" class="text-2xl font-bold mb-6 text-center">Login</h1>
+        <form id="authForm" class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Username</label>
+                <input type="text" id="username" required class="mt-1 block w-full border border-gray-300 rounded-md p-2">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Password</label>
+                <input type="password" id="password" required class="mt-1 block w-full border border-gray-300 rounded-md p-2">
+            </div>
+            <button type="submit" id="submitBtn" class="w-full bg-blue-500 text-white p-2 rounded-md font-semibold">Login</button>
+        </form>
+        <p class="mt-4 text-center text-sm">
+            <a href="#" id="toggleAuth" class="text-blue-500">Need an account? Register</a>
+        </p>
+    </div>
+
+    <div id="uploadSection" class="hidden bg-white p-8 rounded shadow-md w-full max-w-md mt-8">
+        <h2 class="text-xl font-bold mb-4">Upload Video for Telugu Dubbing</h2>
+        <form id="uploadForm" class="space-y-4">
+            <div>
+                <input type="file" id="videoFile" accept="video/*" required class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+            </div>
+            <button type="submit" class="w-full bg-green-500 text-white p-2 rounded-md font-semibold">Start Dubbing</button>
+        </form>
+        <div id="statusArea" class="mt-4 hidden">
+            <p class="text-sm text-gray-600">Status: <span id="jobStatus" class="font-bold">QUEUED</span></p>
+            <a id="downloadLink" href="#" class="hidden mt-2 block text-center bg-indigo-500 text-white p-2 rounded-md font-semibold">Download Dubbed Video</a>
+        </div>
+    </div>
+
+    <script>
+        let isLogin = true;
+        const authForm = document.getElementById('authForm');
+        const toggleAuth = document.getElementById('toggleAuth');
+        const title = document.getElementById('title');
+        const submitBtn = document.getElementById('submitBtn');
+        const uploadSection = document.getElementById('uploadSection');
+        const uploadForm = document.getElementById('uploadForm');
+        const jobStatus = document.getElementById('jobStatus');
+        const downloadLink = document.getElementById('downloadLink');
+        const statusArea = document.getElementById('statusArea');
+
+        toggleAuth.addEventListener('click', (e) => {
+            e.preventDefault();
+            isLogin = !isLogin;
+            title.innerText = isLogin ? 'Login' : 'Register';
+            submitBtn.innerText = isLogin ? 'Login' : 'Register';
+            toggleAuth.innerText = isLogin ? 'Need an account? Register' : 'Have an account? Login';
+        });
+
+        authForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const endpoint = isLogin ? '/auth/login' : '/auth/register';
+
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({username, password})
+            });
+
+            if (response.ok) {
+                if (isLogin) {
+                    const data = await response.json();
+                    localStorage.setItem('token', data.access_token);
+                    authForm.parentElement.classList.add('hidden');
+                    uploadSection.classList.remove('hidden');
+                } else {
+                    alert('Registration successful! Please login.');
+                    toggleAuth.click();
+                }
+            } else {
+                alert('Authentication failed.');
+            }
+        });
+
+        uploadForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const fileInput = document.getElementById('videoFile');
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            const token = localStorage.getItem('token');
+            const response = await fetch('/api/videos/upload', {
+                method: 'POST',
+                headers: {'Authorization': `Bearer ${token}`},
+                body: formData
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                const jobId = data.job_id;
+                statusArea.classList.remove('hidden');
+                pollJobStatus(jobId, token);
+            } else {
+                alert('Upload failed.');
+            }
+        });
+
+        async function pollJobStatus(jobId, token) {
+            const interval = setInterval(async () => {
+                const response = await fetch(`/api/videos/status/${jobId}`, {
+                    headers: {'Authorization': `Bearer ${token}`}
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    jobStatus.innerText = data.status;
+                    if (data.status === 'COMPLETED') {
+                        clearInterval(interval);
+                        downloadLink.href = `/api/videos/download/${jobId}`;
+                        downloadLink.classList.remove('hidden');
+                    } else if (data.status === 'FAILED') {
+                        clearInterval(interval);
+                        alert('Processing failed: ' + data.error);
+                    }
+                }
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
