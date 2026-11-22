@@ -47,4 +47,4 @@ def download_dubbed_video(job_id: str, db: Session = Depends(get_db), current_us
     if not job or job.status != "COMPLETED":
         raise HTTPException(status_code=400, detail="Video not ready")
     return FileResponse(job.output_path, media_type="video/mp4", filename=f"telugu_{job_id}.mp4")
-``` videos with AI-driven dubbing in your requested language.
+#``` videos with AI-driven dubbing in your requested language.
